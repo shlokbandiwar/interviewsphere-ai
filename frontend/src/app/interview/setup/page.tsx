@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { INTERVIEW_DOMAINS, DIFFICULTY_LEVELS, INTERVIEW_TYPES, INTERVIEW_MODES } from "@/lib/constants";
 import { useInterviewStore } from "@/stores/interview-store";
+import { useInterview } from "@/hooks/use-interview";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
@@ -24,14 +25,21 @@ const SETUP_STEPS = [
 export default function InterviewSetupPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
-  const store = useInterviewStore();
   const {
     config, setDomain, setDifficulty, setType, setMode, setCompany,
     setQuestionCount, setVoiceEnabled, setCodingEnabled,
-  } = store;
+  } = useInterviewStore();
+  const { startInterview, isStarting } = useInterview();
+  const [startError, setStartError] = useState("");
 
-  const startInterview = () => {
-    router.push(`/interview/live`);
+  const handleStartInterview = async () => {
+    setStartError("");
+    const session = await startInterview();
+    if (session) {
+      router.push("/interview/live");
+    } else {
+      setStartError("Could not start interview. Please try again.");
+    }
   };
 
   return (
@@ -221,10 +229,19 @@ export default function InterviewSetupPage() {
                 Continue <ArrowRight className="h-4 w-4" />
               </button>
             ) : (
-              <button onClick={startInterview}
-                className="flex items-center gap-2 px-8 py-3 rounded-xl gradient-primary text-white font-semibold shadow-lg shadow-indigo/25 hover:shadow-indigo/40 hover:scale-[1.02] transition-all text-base">
-                Start Interview <ArrowRight className="h-5 w-5" />
-              </button>
+              <>
+                {startError && (
+                  <p className="text-sm text-destructive text-center mb-3">{startError}</p>
+                )}
+                <button onClick={handleStartInterview} disabled={isStarting}
+                  className="flex items-center gap-2 px-8 py-3 rounded-xl gradient-primary text-white font-semibold shadow-lg shadow-indigo/25 hover:shadow-indigo/40 hover:scale-[1.02] transition-all text-base disabled:opacity-50">
+                  {isStarting ? (
+                    <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>Start Interview <ArrowRight className="h-5 w-5" /></>
+                  )}
+                </button>
+              </>
             )}
           </div>
         </div>

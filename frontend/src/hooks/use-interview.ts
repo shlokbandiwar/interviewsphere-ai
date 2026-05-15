@@ -4,97 +4,161 @@ import { useCallback, useState } from "react";
 import { useInterviewStore } from "@/stores/interview-store";
 import { apiClient } from "@/lib/api-client";
 import { trackEvent } from "@/lib/analytics";
+import {
+  createPlaceholderSession,
+  createPlaceholderAnswer,
+  createPlaceholderEvaluation,
+  delay,
+} from "@/lib/interview-placeholder";
 import type { InterviewSession, InterviewMessage, EvaluationResult } from "@/types";
 
 export function useInterview() {
-  const store = useInterviewStore();
+  const config = useInterviewStore((s) => s.config);
+  const session = useInterviewStore((s) => s.session);
+  const evaluation = useInterviewStore((s) => s.evaluation);
+  const isTyping = useInterviewStore((s) => s.isTyping);
+  const setSession = useInterviewStore((s) => s.setSession);
+  const addMessage = useInterviewStore((s) => s.addMessage);
+  const setEvaluation = useInterviewStore((s) => s.setEvaluation);
+  const setIsTyping = useInterviewStore((s) => s.setIsTyping);
+  const clearSession = useInterviewStore((s) => s.clearSession);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [evaluation, setEvaluation] = useState<EvaluationResult | null>(null);
+  const [isStarting, setIsStarting] = useState(false);
 
   const startInterview = useCallback(async () => {
-    const res = await apiClient.post<InterviewSession>("/interview/start", store.config);
+    setIsStarting(true);
+    setEvaluation(null);
+
+    const res = await apiClient.post<InterviewSession>("/interview/start", config);
+
     if (res.success && res.data) {
-      store.setSession(res.data);
+      setSession(res.data);
       trackEvent("interview_started", {
-        domain: store.config.domain,
-        difficulty: store.config.difficulty,
-        type: store.config.type,
-        mode: store.config.mode,
+        domain: config.domain,
+        difficulty: config.difficulty,
+        type: config.type,
+        mode: config.mode,
       });
+      setIsStarting(false);
       return res.data;
     }
-    return null;
-  }, [store]);
+
+    const placeholderSession = createPlaceholderSession(config);
+    setSession(placeholderSession);
+    trackEvent("interview_started", {
+      domain: config.domain,
+      difficulty: config.difficulty,
+      type: config.type,
+      mode: config.mode,
+    });
+    setIsStarting(false);
+    return placeholderSession;
+  }, [config, setSession, setEvaluation]);
 
   const sendAnswer = useCallback(
     async (content: string) => {
-      if (!store.session || isSubmitting) return null;
+      const currentSession = useInterviewStore.getState().session;
+      if (!currentSession || isSubmitting) return null;
+
       setIsSubmitting(true);
 
-      // Add user message immediately
       const userMessage: InterviewMessage = {
         id: crypto.randomUUID(),
         role: "candidate",
         content,
         timestamp: new Date().toISOString(),
       };
-      store.addMessage(userMessage);
-      store.setIsTyping(true);
+      addMessage(userMessage);
+      setIsTyping(true);
 
       trackEvent("question_answered", {
-        sessionId: store.session.id,
-        questionIndex: store.session.currentQuestionIndex,
+        sessionId: currentSession.id,
+        questionIndex: currentSession.currentQuestionIndex,
       });
 
       const res = await apiClient.post<{
         message: InterviewMessage;
         session: InterviewSession;
-      }>(`/interview/${store.session.id}/answer`, { content });
-
-      store.setIsTyping(false);
-      setIsSubmitting(false);
+      }>(`/interview/${currentSession.id}/answer`, { content });
 
       if (res.success && res.data) {
-        store.addMessage(res.data.message);
-        store.setSession(res.data.session);
+        setSession(res.data.session);
+        setIsTyping(false);
+        setIsSubmitting(false);
         return res.data.message;
       }
-      return null;
+
+      await delay(1200 + Math.random() * 800);
+      const placeholder = createPlaceholderAnswer(
+        useInterviewStore.getState().session!,
+        content
+      );
+      setSession(placeholder.session);
+      setIsTyping(false);
+      setIsSubmitting(false);
+      return placeholder.message;
     },
-    [store, isSubmitting]
+    [isSubmitting, addMessage, setSession, setIsTyping]
   );
 
   const endInterview = useCallback(async () => {
-    if (!store.session) return null;
+    const currentSession = useInterviewStore.getState().session;
+    if (!currentSession) return null;
+
+    setIsTyping(true);
 
     const res = await apiClient.post<EvaluationResult>(
-      `/interview/${store.session.id}/end`
+      `/interview/${currentSession.id}/end`
     );
 
     if (res.success && res.data) {
+      const completedSession: InterviewSession = {
+        ...currentSession,
+        status: "completed",
+        completedAt: new Date().toISOString(),
+      };
+      setSession(completedSession);
+      setEvaluation(res.data);
+      setIsTyping(false);
       trackEvent("interview_completed", {
-        sessionId: store.session.id,
+        sessionId: currentSession.id,
         score: res.data.overallScore,
       });
-      setEvaluation(res.data);
       return res.data;
     }
-    return null;
-  }, [store]);
+
+    const placeholderEval = createPlaceholderEvaluation(currentSession);
+    const completedSession: InterviewSession = {
+      ...currentSession,
+      status: "completed",
+      completedAt: new Date().toISOString(),
+    };
+    setSession(completedSession);
+    setEvaluation(placeholderEval);
+    setIsTyping(false);
+    trackEvent("interview_completed", {
+      sessionId: currentSession.id,
+      score: placeholderEval.overallScore,
+    });
+    return placeholderEval;
+  }, [setSession, setEvaluation, setIsTyping]);
 
   const abandonInterview = useCallback(async () => {
-    if (!store.session) return;
-    await apiClient.post(`/interview/${store.session.id}/abandon`);
-    trackEvent("interview_abandoned", { sessionId: store.session.id });
-    store.clearSession();
-  }, [store]);
+    const currentSession = useInterviewStore.getState().session;
+    if (!currentSession) return;
+    await apiClient.post(`/interview/${currentSession.id}/abandon`);
+    trackEvent("interview_abandoned", { sessionId: currentSession.id });
+    clearSession();
+  }, [clearSession]);
 
   return {
-    config: store.config,
-    session: store.session,
-    isTyping: store.isTyping,
-    isSubmitting,
+    config,
+    session,
     evaluation,
+    isTyping,
+    isSubmitting,
+    isStarting,
     startInterview,
     sendAnswer,
     endInterview,
