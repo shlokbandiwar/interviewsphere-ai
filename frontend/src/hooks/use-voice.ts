@@ -28,7 +28,9 @@ interface UseVoiceReturn {
 }
 
 export function useVoice(options: UseVoiceOptions = {}): UseVoiceReturn {
-  const { onResult, onEnd, language = "en-US" } = options;
+  const { language = "en-US" } = options;
+  const onResultRef = useRef(options.onResult);
+  const onEndRef = useRef(options.onEnd);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -36,6 +38,11 @@ export function useVoice(options: UseVoiceOptions = {}): UseVoiceReturn {
 
   const recognitionRef = useRef<any>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
+
+  useEffect(() => {
+    onResultRef.current = options.onResult;
+    onEndRef.current = options.onEnd;
+  });
 
   useEffect(() => {
     const SpeechRecognition =
@@ -57,13 +64,13 @@ export function useVoice(options: UseVoiceOptions = {}): UseVoiceReturn {
         }
         if (finalTranscript) {
           setTranscript(finalTranscript);
-          onResult?.(finalTranscript);
+          onResultRef.current?.(finalTranscript);
         }
       };
 
       recognition.onend = () => {
         setIsListening(false);
-        onEnd?.();
+        onEndRef.current?.();
       };
 
       recognition.onerror = () => {
@@ -79,7 +86,7 @@ export function useVoice(options: UseVoiceOptions = {}): UseVoiceReturn {
       recognitionRef.current?.abort();
       synthRef.current?.cancel();
     };
-  }, [language, onResult, onEnd]);
+  }, [language]);
 
   const startListening = useCallback(() => {
     if (!recognitionRef.current || isListening) return;
@@ -93,18 +100,21 @@ export function useVoice(options: UseVoiceOptions = {}): UseVoiceReturn {
     setIsListening(false);
   }, []);
 
-  const speak = useCallback((text: string) => {
-    if (!synthRef.current) return;
-    synthRef.current.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = language;
-    utterance.rate = 0.95;
-    utterance.pitch = 1;
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-    synthRef.current.speak(utterance);
-  }, [language]);
+  const speak = useCallback(
+    (text: string) => {
+      if (!synthRef.current || !text.trim()) return;
+      synthRef.current.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = language;
+      utterance.rate = 0.95;
+      utterance.pitch = 1;
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      synthRef.current.speak(utterance);
+    },
+    [language]
+  );
 
   const cancelSpeech = useCallback(() => {
     synthRef.current?.cancel();
