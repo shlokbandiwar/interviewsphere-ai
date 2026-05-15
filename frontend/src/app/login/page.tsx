@@ -7,7 +7,10 @@ import { Sparkles, Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { APP_NAME } from "@/lib/constants";
+import { useAuth } from "@/hooks/use-auth";
 import { useAuthStore } from "@/stores/auth-store";
+import { resolveAuthRedirect } from "@/lib/auth-routes";
+import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -15,15 +18,24 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const { login, loginWithGoogle, isLoading } = useAuthStore();
+  const { login, isLoading } = useAuth();
   const router = useRouter();
+
+  const redirectAfterAuth = () => {
+    const user = useAuthStore.getState().user;
+    const redirect =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("redirect")
+        : null;
+    router.push(resolveAuthRedirect(user, redirect));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     const success = await login(email, password);
     if (success) {
-      router.push("/dashboard");
+      redirectAfterAuth();
     } else {
       setError("Invalid email or password");
     }
@@ -112,8 +124,9 @@ export default function LoginPage() {
           </p>
 
           {/* Google OAuth */}
-          <button
-            onClick={() => loginWithGoogle("mock-credential")}
+          <GoogleSignInButton
+            onSuccess={redirectAfterAuth}
+            onError={setError}
             className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl glass glass-hover text-sm font-medium transition-all hover:scale-[1.01] mb-6"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -123,7 +136,7 @@ export default function LoginPage() {
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
             </svg>
             Continue with Google
-          </button>
+          </GoogleSignInButton>
 
           {/* Divider */}
           <div className="flex items-center gap-4 mb-6">

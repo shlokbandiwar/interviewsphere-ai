@@ -11,24 +11,38 @@ import { Textarea } from "@/components/ui/textarea";
 import { useInterviewStore } from "@/stores/interview-store";
 import { INTERVIEW_DOMAINS } from "@/lib/constants";
 
+interface LiveMessage {
+  id: string;
+  role: "interviewer" | "candidate";
+  content: string;
+  timestamp: string;
+  metadata?: {
+    isFollowUp: boolean;
+    difficulty: string;
+    topic: string;
+    domain: string;
+    source: string;
+  };
+}
+
 // Mock messages for demo
-const MOCK_MESSAGES = [
+const MOCK_MESSAGES: LiveMessage[] = [
   {
-    id: "1", role: "interviewer" as const, content: "Welcome! I'm your AI interviewer today. Let's begin with your chosen domain. Are you ready?",
+    id: "1", role: "interviewer", content: "Welcome! I'm your AI interviewer today. Let's begin with your chosen domain. Are you ready?",
     timestamp: new Date().toISOString(),
   },
   {
-    id: "2", role: "interviewer" as const,
+    id: "2", role: "interviewer",
     content: "Great! Let's start. Can you explain the concept of closures in JavaScript and give a practical example of when you would use one?",
     timestamp: new Date().toISOString(),
-    metadata: { isFollowUp: false, difficulty: "intermediate" as const, topic: "Closures", domain: "frontend", source: "dataset" as const },
+    metadata: { isFollowUp: false, difficulty: "intermediate", topic: "Closures", domain: "frontend", source: "dataset" },
   },
 ];
 
 export default function LiveInterviewPage() {
   const router = useRouter();
   const { config } = useInterviewStore();
-  const [messages, setMessages] = useState(MOCK_MESSAGES);
+  const [messages, setMessages] = useState<LiveMessage[]>(MOCK_MESSAGES);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [voiceOn, setVoiceOn] = useState(config.voiceEnabled);
@@ -69,10 +83,10 @@ export default function LiveInterviewPage() {
       setQuestionNum((n) => n + 1);
       setMessages((prev) => [...prev, {
         id: crypto.randomUUID(),
-        role: "interviewer" as const,
+        role: "interviewer",
         content: "That's a solid explanation! You covered the basics well. As a follow-up — how would closures interact with asynchronous operations like setTimeout in a loop? What common pitfall might arise?",
         timestamp: new Date().toISOString(),
-        metadata: { isFollowUp: true, difficulty: "intermediate" as const, topic: "Closures", domain: "frontend", source: "ai_generated" as const },
+        metadata: { isFollowUp: true, difficulty: "intermediate", topic: "Closures", domain: "frontend", source: "ai_generated" },
       }]);
     }, 2000 + Math.random() * 1500);
   };

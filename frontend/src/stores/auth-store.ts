@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import type { User } from "@/types";
 import { apiClient } from "@/lib/api-client";
 import { identifyUser, resetAnalytics, trackEvent } from "@/lib/analytics";
+import { syncAuthCookies, clearAuthCookies } from "@/lib/auth-session";
 
 interface AuthState {
   user: User | null;
@@ -10,7 +11,6 @@ interface AuthState {
   isLoading: boolean;
   isAuthenticated: boolean;
 
-  // Actions
   setUser: (user: User | null) => void;
   setToken: (token: string | null) => void;
   login: (email: string, password: string) => Promise<boolean>;
@@ -18,6 +18,23 @@ interface AuthState {
   loginWithGoogle: (credential: string) => Promise<boolean>;
   logout: () => void;
   refreshUser: () => Promise<void>;
+  requestPasswordReset: (email: string) => Promise<boolean>;
+  completeOnboarding: () => void;
+}
+
+function applySession(
+  set: (partial: Partial<AuthState>) => void,
+  user: User | null,
+  token: string | null
+) {
+  apiClient.setToken(token);
+  syncAuthCookies(token, user?.onboardingComplete ?? false);
+  set({
+    user,
+    token,
+    isAuthenticated: !!(user && token),
+    isLoading: false,
+  });
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -28,11 +45,17 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       isAuthenticated: false,
 
-      setUser: (user) => set({ user, isAuthenticated: !!user }),
+      setUser: (user) => {
+        const { token } = get();
+        syncAuthCookies(token, user?.onboardingComplete ?? false);
+        set({ user, isAuthenticated: !!(user && token) });
+      },
 
       setToken: (token) => {
+        const { user } = get();
         apiClient.setToken(token);
-        set({ token });
+        syncAuthCookies(token, user?.onboardingComplete ?? false);
+        set({ token, isAuthenticated: !!(user && token) });
       },
 
       login: async (email, password) => {
@@ -43,10 +66,9 @@ export const useAuthStore = create<AuthState>()(
         });
         if (res.success && res.data) {
           const { user, token } = res.data;
-          apiClient.setToken(token);
           identifyUser(user.id, { email: user.email, name: user.name });
           trackEvent("login");
-          set({ user, token, isAuthenticated: true, isLoading: false });
+          applySession(set, user, token);
           return true;
         }
         set({ isLoading: false });
@@ -62,10 +84,9 @@ export const useAuthStore = create<AuthState>()(
         });
         if (res.success && res.data) {
           const { user, token } = res.data;
-          apiClient.setToken(token);
           identifyUser(user.id, { email: user.email, name: user.name });
           trackEvent("signup");
-          set({ user, token, isAuthenticated: true, isLoading: false });
+          applySession(set, user, token);
           return true;
         }
         set({ isLoading: false });
@@ -79,10 +100,9 @@ export const useAuthStore = create<AuthState>()(
         });
         if (res.success && res.data) {
           const { user, token } = res.data;
-          apiClient.setToken(token);
           identifyUser(user.id, { email: user.email, name: user.name });
           trackEvent("login", { provider: "google" });
-          set({ user, token, isAuthenticated: true, isLoading: false });
+          applySession(set, user, token);
           return true;
         }
         set({ isLoading: false });
@@ -91,6 +111,7 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         apiClient.setToken(null);
+        clearAuthCookies();
         resetAnalytics();
         set({ user: null, token: null, isAuthenticated: false });
       },
@@ -101,11 +122,28 @@ export const useAuthStore = create<AuthState>()(
         apiClient.setToken(token);
         const res = await apiClient.get<User>("/auth/me");
         if (res.success && res.data) {
+          syncAuthCookies(token, res.data.onboardingComplete);
           set({ user: res.data, isAuthenticated: true });
         } else {
-          // Token expired
+          apiClient.setToken(null);
+          clearAuthCookies();
           set({ user: null, token: null, isAuthenticated: false });
         }
+      },
+
+      requestPasswordReset: async (email) => {
+        set({ isLoading: true });
+        const res = await apiClient.post("/auth/forgot-password", { email });
+        set({ isLoading: false });
+        return res.success;
+      },
+
+      completeOnboarding: () => {
+        const { user, token } = get();
+        if (!user || !token) return;
+        const updated = { ...user, onboardingComplete: true };
+        syncAuthCookies(token, true);
+        set({ user: updated });
       },
     }),
     {
@@ -118,6 +156,7 @@ export const useAuthStore = create<AuthState>()(
       onRehydrateStorage: () => (state) => {
         if (state?.token) {
           apiClient.setToken(state.token);
+          syncAuthCookies(state.token, state.user?.onboardingComplete ?? false);
         }
       },
     }

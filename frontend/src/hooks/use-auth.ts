@@ -4,24 +4,35 @@ import { useEffect } from "react";
 import { useAuthStore } from "@/stores/auth-store";
 
 export function useAuth() {
-  const store = useAuthStore();
+  const user = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.token);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const login = useAuthStore((s) => s.login);
+  const signup = useAuthStore((s) => s.signup);
+  const loginWithGoogle = useAuthStore((s) => s.loginWithGoogle);
+  const logout = useAuthStore((s) => s.logout);
+  const refreshUser = useAuthStore((s) => s.refreshUser);
+  const requestPasswordReset = useAuthStore((s) => s.requestPasswordReset);
+  const completeOnboarding = useAuthStore((s) => s.completeOnboarding);
 
-  // Rehydrate user on mount if we have a token
   useEffect(() => {
-    if (store.token && !store.user) {
-      store.refreshUser();
+    if (token && !user) {
+      void refreshUser();
     }
-  }, [store]);
+  }, [token, user, refreshUser]);
 
   return {
-    user: store.user,
-    token: store.token,
-    isLoading: store.isLoading,
-    isAuthenticated: store.isAuthenticated,
-    login: store.login,
-    signup: store.signup,
-    loginWithGoogle: store.loginWithGoogle,
-    logout: store.logout,
-    refreshUser: store.refreshUser,
+    user,
+    token,
+    isLoading,
+    isAuthenticated,
+    login,
+    signup,
+    loginWithGoogle,
+    logout,
+    refreshUser,
+    requestPasswordReset,
+    completeOnboarding,
   };
 }

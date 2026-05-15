@@ -152,7 +152,17 @@ export default function InterviewSetupPage() {
                     </div>
                     <div>
                       <label className="text-sm font-medium mb-2 block">Number of Questions: {config.questionCount}</label>
-                      <Slider value={[config.questionCount]} onValueChange={([v]) => setQuestionCount(v)} min={5} max={25} step={1} className="mt-3" />
+                      <Slider
+                        value={[config.questionCount]}
+                        onValueChange={(value) => {
+                          const next = Array.isArray(value) ? value[0] : value;
+                          if (typeof next === "number") setQuestionCount(next);
+                        }}
+                        min={5}
+                        max={25}
+                        step={1}
+                        className="mt-3"
+                      />
                     </div>
                     <div className="flex items-center justify-between p-4 rounded-xl glass">
                       <div className="flex items-center gap-3">

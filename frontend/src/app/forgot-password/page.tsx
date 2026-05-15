@@ -7,15 +7,23 @@ import { Sparkles, Mail, ArrowRight, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { APP_NAME } from "@/lib/constants";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+  const { requestPasswordReset, isLoading } = useAuth();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Call backend reset endpoint
-    setSent(true);
+    setError("");
+    const success = await requestPasswordReset(email);
+    if (success) {
+      setSent(true);
+    } else {
+      setError("Unable to send reset link. Please try again.");
+    }
   };
 
   return (
@@ -53,9 +61,14 @@ export default function ForgotPasswordPage() {
                       onChange={(e) => setEmail(e.target.value)} className="pl-10 h-11 rounded-xl bg-muted/50 border-border" required />
                   </div>
                 </div>
-                <button type="submit"
-                  className="w-full flex items-center justify-center gap-2 h-11 rounded-xl gradient-primary text-white font-semibold shadow-lg shadow-indigo/25 transition-all hover:scale-[1.01]">
-                  Send Reset Link <ArrowRight className="h-4 w-4" />
+                {error && <p className="text-sm text-destructive">{error}</p>}
+                <button type="submit" disabled={isLoading}
+                  className="w-full flex items-center justify-center gap-2 h-11 rounded-xl gradient-primary text-white font-semibold shadow-lg shadow-indigo/25 transition-all hover:scale-[1.01] disabled:opacity-50">
+                  {isLoading ? (
+                    <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>Send Reset Link <ArrowRight className="h-4 w-4" /></>
+                  )}
                 </button>
               </form>
             </>

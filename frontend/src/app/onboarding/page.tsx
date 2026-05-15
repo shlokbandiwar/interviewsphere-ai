@@ -9,6 +9,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { INTERVIEW_DOMAINS, DIFFICULTY_LEVELS, TOP_COMPANIES } from "@/lib/constants";
 import { trackEvent } from "@/lib/analytics";
+import { useAuth } from "@/hooks/use-auth";
 
 const STEPS = [
   { title: "Your Goal", subtitle: "What are you preparing for?", icon: Target },
@@ -26,6 +27,7 @@ const WEAK_AREAS = [
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { completeOnboarding } = useAuth();
   const [step, setStep] = useState(0);
   const [data, setData] = useState({
     targetRole: "",
@@ -49,6 +51,7 @@ export default function OnboardingPage() {
 
   const finish = () => {
     trackEvent("onboarding_completed", data);
+    completeOnboarding();
     router.push("/dashboard");
   };
 

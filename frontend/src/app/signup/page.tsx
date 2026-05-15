@@ -7,7 +7,10 @@ import { Sparkles, Mail, Lock, User, Eye, EyeOff, ArrowRight } from "lucide-reac
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { APP_NAME } from "@/lib/constants";
+import { useAuth } from "@/hooks/use-auth";
 import { useAuthStore } from "@/stores/auth-store";
+import { resolveAuthRedirect } from "@/lib/auth-routes";
+import { GoogleSignInButton } from "@/components/auth/google-sign-in-button";
 import { useRouter } from "next/navigation";
 
 export default function SignupPage() {
@@ -16,8 +19,13 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const { signup, loginWithGoogle, isLoading } = useAuthStore();
+  const { signup, isLoading } = useAuth();
   const router = useRouter();
+
+  const redirectAfterAuth = () => {
+    const user = useAuthStore.getState().user;
+    router.push(resolveAuthRedirect(user, null));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +36,7 @@ export default function SignupPage() {
     }
     const success = await signup(name, email, password);
     if (success) {
-      router.push("/onboarding");
+      redirectAfterAuth();
     } else {
       setError("Registration failed. Try a different email.");
     }
@@ -90,8 +98,9 @@ export default function SignupPage() {
           <p className="text-muted-foreground mb-8">Free forever. No credit card required.</p>
 
           {/* Google OAuth */}
-          <button
-            onClick={() => loginWithGoogle("mock-credential")}
+          <GoogleSignInButton
+            onSuccess={redirectAfterAuth}
+            onError={setError}
             className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl glass glass-hover text-sm font-medium transition-all hover:scale-[1.01] mb-6"
           >
             <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -101,7 +110,7 @@ export default function SignupPage() {
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
             </svg>
             Continue with Google
-          </button>
+          </GoogleSignInButton>
 
           <div className="flex items-center gap-4 mb-6">
             <div className="flex-1 h-px bg-border" />
